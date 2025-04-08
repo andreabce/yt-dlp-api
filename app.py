@@ -17,10 +17,11 @@ def download_video():
 
     output_filename = f"{uuid4()}.mp4"
     ydl_opts = {
-        'format': 'best',
+        'format': 'bv*+ba/best',
         'outtmpl': output_filename,
         'quiet': True,
-        'cookiefile': 'cookies.txt',  # <- fichier cookies
+        'cookiefile': 'cookies.txt',
+        'merge_output_format': 'mp4'
     }
 
     try:
