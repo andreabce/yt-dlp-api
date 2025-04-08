@@ -5,7 +5,7 @@ import os
 from uuid import uuid4
 
 app = Flask(__name__)
-CORS(app)  # Autorise toutes les origines
+CORS(app)
 
 @app.route('/api/download', methods=['POST'])
 def download_video():
@@ -20,13 +20,15 @@ def download_video():
         'format': 'bv*+ba/best',
         'outtmpl': output_filename,
         'quiet': True,
-        'cookiefile': 'cookies.txt',
-        'merge_output_format': 'mp4'
+        'merge_output_format': 'mp4',
+        'cookiefile': os.path.join(os.getcwd(), 'cookies.txt')
     }
 
     try:
-        print("Fichier cookies.txt existe ?", os.path.exists('cookies.txt'))
-        print("Chemin absolu :", os.path.abspath('cookies.txt'))
+        # Vérifie que cookies.txt est bien trouvé sur Render
+        cookie_path = ydl_opts['cookiefile']
+        print("Cookie file exists:", os.path.exists(cookie_path))
+        print("Absolute path:", cookie_path)
 
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
@@ -46,12 +48,13 @@ def index():
 
 @app.route('/test-cookie')
 def test_cookie():
-    cookies_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
-    if os.path.exists(cookies_path):
-        with open(cookies_path, 'r', encoding='utf-8') as f:
-            contenu = f.read()[:1000]  # limite à 1000 caractères pour éviter un affichage trop long
-            return f"<pre>{contenu}</pre>"
-    return "Fichier cookies.txt introuvable"
+    cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+    if os.path.exists(cookie_path):
+        with open(cookie_path, 'r') as f:
+            content = f.read(1000)  # Affiche juste une partie
+        return f"cookies.txt trouvé ✅\n\nExtrait:\n{content}"
+    else:
+        return "cookies.txt non trouvé ❌"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
