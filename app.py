@@ -25,6 +25,9 @@ def download_video():
     }
 
     try:
+        print("Fichier cookies.txt existe ?", os.path.exists('cookies.txt'))
+        print("Chemin absolu :", os.path.abspath('cookies.txt'))
+
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
