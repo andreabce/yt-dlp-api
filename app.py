@@ -1,9 +1,11 @@
 from flask import Flask, request, send_file, jsonify
+from flask_cors import CORS
 from yt_dlp import YoutubeDL
 import os
 from uuid import uuid4
 
 app = Flask(__name__)
+CORS(app)  # Autorise toutes les origines (à restreindre si besoin)
 
 @app.route('/api/download', methods=['POST'])
 def download_video():
