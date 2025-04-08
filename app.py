@@ -5,7 +5,7 @@ import os
 from uuid import uuid4
 
 app = Flask(__name__)
-CORS(app)  # Autorise toutes les origines (à restreindre si besoin)
+CORS(app)
 
 @app.route('/api/download', methods=['POST'])
 def download_video():
@@ -16,17 +16,21 @@ def download_video():
         return jsonify({"error": "URL manquante"}), 400
 
     output_filename = f"{uuid4()}.mp4"
+    cookies_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+
+    if not os.path.exists(cookies_path):
+        return jsonify({"error": "Le fichier cookies.txt est introuvable sur le serveur"}), 500
+
     ydl_opts = {
         'format': 'bv*+ba/best',
         'outtmpl': output_filename,
         'quiet': True,
-        'cookiefile': 'cookies.txt',
+        'cookiefile': cookies_path,  # <- Utilise chemin absolu
         'merge_output_format': 'mp4'
     }
 
     try:
-        print("Fichier cookies.txt existe ?", os.path.exists('cookies.txt'))
-        print("Chemin absolu :", os.path.abspath('cookies.txt'))
+        print("Fichier cookies.txt trouvé à :", cookies_path)
 
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
