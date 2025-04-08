@@ -5,7 +5,7 @@ import os
 from uuid import uuid4
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # Autorise toutes les origines
 
 @app.route('/api/download', methods=['POST'])
 def download_video():
@@ -16,21 +16,17 @@ def download_video():
         return jsonify({"error": "URL manquante"}), 400
 
     output_filename = f"{uuid4()}.mp4"
-    cookies_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
-
-    if not os.path.exists(cookies_path):
-        return jsonify({"error": "Le fichier cookies.txt est introuvable sur le serveur"}), 500
-
     ydl_opts = {
         'format': 'bv*+ba/best',
         'outtmpl': output_filename,
         'quiet': True,
-        'cookiefile': cookies_path,  # <- Utilise chemin absolu
+        'cookiefile': 'cookies.txt',
         'merge_output_format': 'mp4'
     }
 
     try:
-        print("Fichier cookies.txt trouvé à :", cookies_path)
+        print("Fichier cookies.txt existe ?", os.path.exists('cookies.txt'))
+        print("Chemin absolu :", os.path.abspath('cookies.txt'))
 
         with YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
@@ -47,6 +43,15 @@ def download_video():
 @app.route('/')
 def index():
     return 'API yt-dlp opérationnelle'
+
+@app.route('/test-cookie')
+def test_cookie():
+    cookies_path = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+    if os.path.exists(cookies_path):
+        with open(cookies_path, 'r', encoding='utf-8') as f:
+            contenu = f.read()[:1000]  # limite à 1000 caractères pour éviter un affichage trop long
+            return f"<pre>{contenu}</pre>"
+    return "Fichier cookies.txt introuvable"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
