@@ -2,84 +2,92 @@ from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from yt_dlp import YoutubeDL
 import os
-import uuid
-import subprocess
+from uuid import uuid4
 
 app = Flask(__name__)
 CORS(app)
 
-DOWNLOAD_FOLDER = "downloads"
-os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
-
-@app.route("/api/download", methods=["POST"])
+@app.route('/api/download', methods=['POST'])
 def download_video():
     data = request.get_json()
-    url = data.get("url")
-    tcin = data.get("tcin", "00:00:00")
-    tcout = data.get("tcout", "00:00:00")
-    format = data.get("format", "mp4").lower()
+    url = data.get('url')
+    format_requested = data.get('format', 'mp4').lower()
+    tc_in = data.get('tc_in', '00:00:00')
+    tc_out = data.get('tc_out', '00:00:00')
 
     if not url:
-        return jsonify({"error": "Missing URL"}), 400
+        return jsonify({"error": "URL manquante"}), 400
 
-    tmp_id = str(uuid.uuid4())
-    base_path = os.path.join(DOWNLOAD_FOLDER, tmp_id)
-    os.makedirs(base_path, exist_ok=True)
-    output_path = os.path.join(base_path, "%(title).80s.%(ext)s")
+    # Définir l'extension de sortie
+    ext_map = {'mp4': 'mp4', 'mp3': 'mp3', 'wav': 'wav'}
+    extension = ext_map.get(format_requested, 'mp4')
+    output_filename = f"{uuid4()}.{extension}"
 
+    # Options de base
     ydl_opts = {
-        'outtmpl': output_path,
+        'outtmpl': output_filename,
         'quiet': True,
-        'format': 'bestaudio/best' if format in ['mp3', 'wav'] else 'best',
+        'cookiefile': os.path.join(os.getcwd(), 'cookies.txt'),
     }
 
+    # Format spécifique
+    if format_requested == 'mp4':
+        ydl_opts.update({
+            'format': 'bv*+ba/bestvideo+bestaudio/best',
+            'merge_output_format': 'mp4'
+        })
+    else:
+        # Audio seulement
+        ydl_opts.update({
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': format_requested,
+                'preferredquality': '192'
+            }]
+        })
+
     try:
+        print("✅ Fichier cookies.txt trouvé ?", os.path.exists(ydl_opts['cookiefile']))
+        print("📂 Chemin cookies.txt :", ydl_opts['cookiefile'])
+
         with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
+            ydl.download([url])
 
-        # si pas de découpage
-        if tcin == "00:00:00" and tcout == "00:00:00":
-            final_ext = format
-            if format == "mp4":
-                final_file = filename
-            else:
-                final_file = os.path.splitext(filename)[0] + f".{format}"
-                convert_to_audio(filename, final_file, format)
-        else:
-            # découpage nécessaire
-            final_file = os.path.join(base_path, f"{tmp_id}.{format}")
-            cut_media(filename, final_file, tcin, tcout, format)
+        # Découpe audio/vidéo avec ffmpeg si nécessaire
+        if tc_in != "00:00:00" or tc_out != "00:00:00":
+            clipped_file = f"clipped_{output_filename}"
+            tc_args = []
+            if tc_in != "00:00:00":
+                tc_args.extend(["-ss", tc_in])
+            if tc_out != "00:00:00":
+                tc_args.extend(["-to", tc_out])
+            os.system(f"ffmpeg -y -i {output_filename} {' '.join(tc_args)} -c copy {clipped_file}")
+            os.remove(output_filename)
+            output_filename = clipped_file
 
-        return send_file(final_file, as_attachment=True)
+        return send_file(output_filename, as_attachment=True)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+    finally:
+        if os.path.exists(output_filename):
+            os.remove(output_filename)
 
-def cut_media(input_file, output_file, tcin, tcout, format):
-    codec = "copy" if format == "mp4" else "aac"
-    cmd = [
-        "ffmpeg", "-y",
-        "-ss", tcin,
-        "-to", tcout,
-        "-i", input_file,
-        "-c", "copy" if format == "mp4" else "aac",
-        output_file
-    ]
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+@app.route('/')
+def index():
+    return 'API yt-dlp opérationnelle'
 
-
-def convert_to_audio(input_file, output_file, format):
-    codec = "libmp3lame" if format == "mp3" else "pcm_s16le"
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", input_file,
-        "-vn",
-        "-acodec", codec,
-        output_file
-    ]
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
+@app.route('/test-cookie')
+def test_cookie():
+    cookie_path = os.path.join(os.getcwd(), 'cookies.txt')
+    if os.path.exists(cookie_path):
+        with open(cookie_path, 'r') as f:
+            content = f.read(1000)
+        return f"✅ cookies.txt trouvé !\n\nExtrait :\n{content}"
+    else:
+        return "❌ cookies.txt non trouvé !"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
