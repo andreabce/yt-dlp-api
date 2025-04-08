@@ -25,10 +25,14 @@ def download_video():
 
     # Options de base
     ydl_opts = {
-        'outtmpl': output_filename,
         'quiet': True,
+        'outtmpl': output_filename,
         'cookiefile': os.path.join(os.getcwd(), 'cookies.txt'),
-    }
+        'no-check-certificate': True,
+        'noplaylist': True,
+        'source_address': '0.0.0.0',
+}
+
 
     # Format spécifique
     if format_requested == 'mp4':
@@ -37,7 +41,6 @@ def download_video():
             'merge_output_format': 'mp4'
         })
     else:
-        # Audio seulement
         ydl_opts.update({
             'format': 'bestaudio/best',
             'postprocessors': [{
